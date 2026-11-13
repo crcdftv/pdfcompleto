@@ -1,0 +1,63 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+
+# ===== Ambientes virtuais =====
+.venv/
+.venv1/
+venv/
+env/
+Lib/
+Scripts/
+Include/
+libs/
+share/
+pyvenv.cfg
+
+# ===== Builds e empacotamento =====
+build/
+dist/
+*.spec
+!assinador_local/AssinadorLocal.spec
+*.egg
+*.exe
+*.msi
+*.pkg
+
+# ===== Ferramentas de terceiros =====
+poppler-*/
+.idea/
+.vscode/
+.openclaude/
+
+# ===== Dados de trabalho (nunca versionar) =====
+uploads/
+signed/
+compressed/
+ocr_outputs/
+logs/
+.flask_session/
+*.log
+
+# ===== Chaves, certificados e segredos =====
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+.env
+.env.*
+
+# ===== Documentos dos clientes =====
+*.pdf
+
+# ===== Sistema operacional =====
+.DS_Store
+Thumbs.db
+desktop.ini

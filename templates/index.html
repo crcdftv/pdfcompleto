@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor de PDF</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css?v=2">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+    </script>
+</head>
+
+<body>
+
+<!-- Botão de abrir menu -->
+<button id="menu-toggle" title="Abrir Menu">
+  <i class="fas fa-bars"></i>
+  <span class="menu-text">Ferramentas</span>
+</button>
+
+<!-- Menu lateral -->
+<div id="menu">
+
+    <!-- Abrir PDF -->
+    <label for="pdf-upload" class="menu-item" title="Carregar PDF">
+        <i class="fas fa-folder-open"></i>
+        <span class="menu-text">Abrir PDF</span>
+    </label>
+    <input type="file" id="pdf-upload" accept="application/pdf" multiple>
+
+    <button id="merge-pages-btn" class="menu-item" title="Juntar Páginas">
+        <i class="fas fa-copy"></i>
+        <span class="menu-text">Juntar</span>
+    </button>
+
+    <input type="file" id="pdfFiles" multiple accept="application/pdf" style="display:none;">
+
+    <!-- Buscar -->
+    <button id="toggle-search" class="menu-item" title="Buscar no PDF">
+        <i class="fas fa-search"></i>
+        <span class="menu-text">Buscar</span>
+    </button>
+
+    <div class="separator"></div>
+
+    <button id="zoom-out-btn" class="menu-item" title="Diminuir Zoom">
+        <i class="fas fa-search-minus"></i>
+        <span class="menu-text">Zoom -</span>
+    </button>
+
+    <button id="zoom-in-btn" class="menu-item" title="Aumentar Zoom">
+        <i class="fas fa-search-plus"></i>
+        <span class="menu-text">Zoom +</span>
+    </button>
+
+    <div class="separator"></div>
+
+    <button id="rotate-left-btn" class="menu-item" title="Girar Esquerda">
+        <i class="fas fa-undo"></i>
+        <span class="menu-text">Girar ←</span>
+    </button>
+
+    <button id="rotate-right-btn" class="menu-item" title="Girar Direita">
+        <i class="fas fa-redo"></i>
+        <span class="menu-text">Girar →</span>
+    </button>
+
+    <div class="separator"></div>
+
+    <button id="toggle-redaction-btn" class="menu-item" title="Ativar/Sair do Modo Tarja">
+        <i class="fas fa-marker"></i>
+        <span class="menu-text">Tarja</span>
+    </button>
+
+    <button id="undo-redaction-btn" class="menu-item" title="Desfazer Tarja">
+        <i class="fas fa-eraser"></i>
+        <span class="menu-text">Desfazer</span>
+    </button>
+
+    <button id="toggle-text-btn" class="menu-item" title="Inserir Texto">
+        <i class="fas fa-font"></i>
+        <span class="menu-text">Texto</span>
+    </button>
+
+    <div class="separator"></div>
+
+    <button id="pdf-to-word-btn" class="menu-item" title="Converter PDF em Word">
+        <i class="fas fa-file-word"></i>
+        <span class="menu-text">Word</span>
+    </button>
+
+    <button id="pdf-to-excel-btn" class="menu-item" title="Converter PDF em Excel">
+        <i class="fas fa-file-excel"></i>
+        <span class="menu-text">Excel</span>
+    </button>
+
+    <button id="pdf-to-image-btn" class="menu-item" title="Converter PDF em Imagem">
+        <i class="fas fa-file-image"></i>
+        <span class="menu-text">PDF → Imagem</span>
+    </button>
+
+    <button id="image-to-pdf-btn" class="menu-item" title="Converter Imagem em PDF">
+        <i class="fas fa-file-pdf"></i>
+        <span class="menu-text">Imagem → PDF</span>
+    </button>
+
+    <button id="ocr-btn" class="menu-item" title="Converter para OCR">
+        <i class="fas fa-file-lines"></i>
+        <span class="menu-text">OCR</span>
+    </button>
+
+    <button id="sign-pdf-btn" class="menu-item" title="Assinar PDF">
+        <i class="fas fa-pen-nib"></i>
+        <span class="menu-text">Assinar</span>
+    </button>
+
+    <button id="compress-pdf-btn" class="menu-item" title="Comprimir PDF">
+        <i class="fas fa-compress"></i>
+        <span class="menu-text">Comprimir</span>
+    </button>
+
+    <button id="split-pages-btn" class="menu-item" title="Dividir PDF">
+        <i class="fas fa-scissors"></i>
+        <span class="menu-text">Dividir</span>
+    </button>
+
+    <button id="save-pdf-btn" class="menu-item" title="Salvar Edições">
+        <i class="fas fa-save"></i>
+        <span class="menu-text">Salvar</span>
+    </button>
+
+    <div class="separator"></div>
+
+    <!-- Sessões ativas (heartbeat: renova a cada poucos segundos) -->
+    <div id="sessoes-indicator" title="Sessões ativas no momento">
+        <span class="sessao-dot"></span>
+        <span id="sessoes-texto">– sessões ativas</span>
+    </div>
+
+</div>
+
+<!-- Barra de busca -->
+<div id="search-bar">
+    <input type="text" id="search-input" placeholder="Buscar no PDF...">
+    <button id="prev-result" title="Anterior">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+    <span id="search-counter">0 / 0</span>
+    <button id="next-result" title="Próximo">
+        <i class="fas fa-arrow-down"></i>
+    </button>
+    <button id="search-button" title="Buscar">
+        <i class="fas fa-search"></i>
+    </button>
+    <button id="close-search" title="Fechar">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
+
+<!-- Área do PDF -->
+<div id="pdf-container">
+    <div id="pdf-render">
+        <div id="empty-state">
+            <div class="es-bg-scene">
+                <i class="fas fa-pencil es-icon es-pencil"></i>
+                <i class="fas fa-file-alt es-icon es-paper"></i>
+                <i class="fas fa-highlighter es-icon es-highlighter"></i>
+                <i class="fas fa-stamp es-icon es-stamp"></i>
+                <i class="fas fa-pen-fancy es-icon es-pen"></i>
+                <i class="fas fa-rotate es-icon es-rotate"></i>
+                <i class="fas fa-arrows-rotate es-icon es-rotatel"></i>
+                <i class="fas fa-scissors es-icon es-scissors"></i>
+                <i class="fas fa-print es-icon es-print"></i>
+            </div>
+            <h2>Editor de PDF</h2>
+            <p>Clique em <strong>Abrir PDF</strong> no menu ao lado ou arraste um arquivo aqui para começar.</p>
+            <div class="empty-hints">
+                <span><i class="fas fa-search"></i> Visualizar</span>
+                <span><i class="fas fa-marker"></i> Tarjar</span>
+                <span><i class="fas fa-file-word"></i> Converter</span>
+                <span><i class="fas fa-pen-nib"></i> Assinar</span>
+                <span><i class="fas fa-compress"></i> Comprimir</span>
+            </div>
+        </div>
+    </div>
+    <div id="pdf-overlay"></div>
+</div>
+
+<!-- Modal Excel -->
+<div id="excelModal">
+  <div>
+    <h3><i class="fas fa-file-excel"></i>Exportar para Excel</h3>
+    <p>Configure como deseja exportar o conteúdo do PDF.</p>
+
+    <p style="margin:0 0 8px;font-size:0.82rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;">Qualidade</p>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <label id="excel-q-fast" style="flex:1;display:flex;align-items:flex-start;gap:10px;padding:12px;border:2px solid var(--border);border-radius:var(--radius-md);cursor:pointer;background:var(--surface-alt);transition:all var(--transition);">
+        <input type="radio" name="excel-quality" value="fast" checked style="accent-color:var(--success);margin-top:2px;">
+        <span>
+          <strong style="display:block;color:var(--text);font-size:0.88rem;">Rápida</strong>
+          <small style="color:var(--text-muted);font-size:0.78rem;">Texto + cores. Segundos por página.</small>
+        </span>
+      </label>
+      <label id="excel-q-quality" style="flex:1;display:flex;align-items:flex-start;gap:10px;padding:12px;border:2px solid var(--border);border-radius:var(--radius-md);cursor:pointer;background:var(--surface-alt);transition:all var(--transition);">
+        <input type="radio" name="excel-quality" value="quality" style="accent-color:var(--success);margin-top:2px;">
+        <span>
+          <strong style="display:block;color:var(--text);font-size:0.88rem;">Alta fidelidade</strong>
+          <small style="color:var(--text-muted);font-size:0.78rem;">Tabelas, imagens e OCR. 1-2 min/pág.</small>
+        </span>
+      </label>
+    </div>
+
+    <div id="excel-warning-slow">
+      <i class="fas fa-clock" style="margin-right:6px;"></i>
+      <strong>Alta fidelidade pode demorar</strong> dependendo do número de páginas.
+    </div>
+
+    <div id="excel-progress-area">
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+        <span id="excel-progress-msg">Iniciando…</span>
+        <span id="excel-progress-pct">0%</span>
+      </div>
+      <div style="background:var(--border);border-radius:99px;overflow:hidden;height:6px;">
+        <div id="excel-progress-bar" style="height:6px;width:0%;background:linear-gradient(90deg, var(--success), #059669);transition:width 0.4s;border-radius:99px;"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:4px;">
+      <button id="excel-modal-cancel">Cancelar</button>
+      <button id="excel-modal-confirm">Converter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal compressão -->
+<div id="compressModal" class="modal">
+    <div class="modal-content">
+        <p>Comprimindo PDF...</p>
+        <div class="progress-bar">
+            <div class="progress-fill" id="compressProgress"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Sidebar thumbnails -->
+<div id="sidebar">
+    <h3>Páginas</h3>
+    <input type="file" id="add-pdf-input" style="display: none;">
+    <div id="thumbnail-progress-bar-container">
+        <div id="thumbnail-progress-bar"></div>
+    </div>
+    <div id="thumbnails"></div>
+</div>
+
+<!-- Popup token -->
+<div id="tokenPopup" class="popup-overlay hidden">
+    <div class="popup-content">
+        <h3><i class="fas fa-id-badge"></i> Assinatura Digital</h3>
+        <label for="popupTokenSelect">Selecione o token:</label>
+        <select id="popupTokenSelect">
+            <option value="">— selecione —</option>
+        </select>
+
+        <label for="popupPinInput">Digite o PIN:</label>
+        <input type="password" id="popupPinInput">
+
+        <button id="popupConfirmBtn">Confirmar</button>
+    </div>
+</div>
+
+<!-- Drop overlay -->
+<div id="drop-overlay">
+    <i class="fas fa-cloud-arrow-up" style="font-size:2rem;margin-bottom:12px;display:block;"></i>
+    Solte o PDF aqui
+</div>
+
+<!-- Script modular -->
+<script type="module" src="/static/js/app.js"></script>
+
+</body>
+</html>
