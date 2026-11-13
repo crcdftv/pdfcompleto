@@ -1,0 +1,33 @@
+# =====================================================================
+# PDFCompleto - normalizacao de fim de linha
+#
+# shell scripts (rodam na VPS Linux) PRECISAM de LF.
+# Se um Windows contributor commitar com CRLF, o script falha com
+# "/bin/bash^M: bad interpreter" na VPS.
+# =====================================================================
+
+* text=auto
+
+*.sh   text eol=lf
+*.bash text eol=lf
+Dockerfile text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# binarios
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pem  binary
+*.key  binary
+*.pfx  binary
+*.p12  binary

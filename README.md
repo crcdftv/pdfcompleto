@@ -32,6 +32,43 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+No Windows, as dependências extras (build, PyQt, token USB) estão em
+`requirements-windows.txt`:
+
+```bash
+pip install -r requirements-windows.txt
+```
+
+## Instalação em servidor Linux (VPS)
+
+Instalação **nativa** (venv + systemd + nginx) em Ubuntu/Debian:
+
+```bash
+git clone https://github.com/crcdftv/pdfcompleto.git
+cd pdfcompleto
+sudo bash deploy/install.sh
+```
+
+O instalador cuida de tudo: Tesseract (`por`+`eng`), Poppler, nginx, usuário
+`sistema pdfcompleto`, venv em `/opt/pdfcompleto`, dados em
+`/var/lib/pdfcompleto`, serviço systemd e proxy nginx.
+
+- **Guia completo (passo a passo, domínio, HTTPS, swap, backup):**
+  [`deploy/DEPLOY.md`](deploy/DEPLOY.md)
+- **Configuração por variáveis de ambiente:** [`deploy/.env.example`](deploy/.env.example)
+- **Atualizar o código depois:** `sudo bash deploy/update.sh`
+
+Alternativa com Docker:
+
+```bash
+docker build -t pdfcompleto .
+docker run -d -p 5000:5000 -e SECRET_KEY=$(openssl rand -hex 32) \
+  -v pdfcompleto_dados:/data --restart unless-stopped pdfcompleto
+```
+
+> A assinatura digital por **token USB** é Windows-only (driver SafeSign). Na
+> VPS o sistema sobe sem ela — continue assinando pelo PC Windows.
+
 ## Executando
 
 ```bash

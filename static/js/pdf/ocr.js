@@ -39,14 +39,27 @@ async function pollOcrProgress(ocrPdfPath, btn, originalHtml) {
   const convId = store.conversionId;
   let attempts = 0;
   const max = 300;
+  // Falhas de rede (ex.: conexao keep-alive fechada pelo servidor) nao
+  // significam que o OCR parou: a conversao roda no servidor. So aborta
+  // apos varias falhas consecutivas.
+  let falhasConsecutivas = 0;
+  const maxFalhas = 5;
+
+  const finalizar = (mensagem) => {
+    clearInterval(interval);
+    hideLoadingOverlay();
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+    if (mensagem) alert(mensagem);
+  };
 
   const interval = setInterval(async () => {
     attempts++;
     try {
-      const resp = await fetch(`/conversion_progress/${convId}`);
+      const resp = await fetch(`/conversion_progress/${convId}`, { cache: 'no-store' });
       if (!resp.ok) throw new Error(`Status ${resp.status}`);
 
       const prog = await resp.json();
+      falhasConsecutivas = 0;
       const page = prog.current_page && prog.total_pages
         ? ` (${prog.current_page}/${prog.total_pages})`
         : '';
@@ -64,10 +77,18 @@ async function pollOcrProgress(ocrPdfPath, btn, originalHtml) {
         throw new Error('Timeout – OCR demorou demais');
       }
     } catch (e) {
-      clearInterval(interval);
-      hideLoadingOverlay();
-      if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
-      alert(`Erro ao acompanhar OCR: ${e.message}`);
+      // Erro de rede (fetch rejeitado): tenta de novo em vez de desistir.
+      const ehRede = e instanceof TypeError;
+      if (ehRede && ++falhasConsecutivas < maxFalhas) {
+        console.warn('Falha de rede ao consultar o progresso do OCR, tentando de novo:', e);
+        return;
+      }
+      if (ehRede) {
+        finalizar(`Não foi possível acompanhar o OCR (${falhasConsecutivas} falhas de conexão). ` +
+          `A conversão pode ter concluído; recarregue a página para verificar.`);
+        return;
+      }
+      finalizar(`Erro ao acompanhar OCR: ${e.message}`);
     }
   }, 1000);
 }

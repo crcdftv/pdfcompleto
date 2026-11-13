@@ -233,7 +233,18 @@ def pdf_to_ocr(input_pdf_path, output_pdf_path, conversion_id):
         if pytesseract is None:
             raise RuntimeError("pytesseract indisponivel: OCR nao configurado")
 
-        max_workers = max(1, min(4, (os.cpu_count() or 2)))
+        # Paralelismo do OCR: por padrao ate 4 paginas simultaneas (o Tesseract
+        # roda em processo externo). Em VPS com pouca RAM, reduza via
+        # OCR_MAX_WORKERS=1 ou 2 (cada pagina a 300 DPI usa bastante memoria).
+        try:
+            limite = int(os.environ.get('OCR_MAX_WORKERS', '0'))
+        except ValueError:
+            limite = 0
+        if limite > 0:
+            max_workers = max(1, min(8, limite))
+        else:
+            max_workers = max(1, min(4, (os.cpu_count() or 2)))
+        print(f"OCR: {total_pages} paginas, {max_workers} worker(s) em paralelo")
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
 
         # fila limitada: no máximo max_workers imagens aguardando o Tesseract

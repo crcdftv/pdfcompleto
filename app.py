@@ -1,4 +1,4 @@
-# app.py
+﻿# app.py
 from flask import (Flask, render_template, request, jsonify, send_from_directory, session,
                    send_file, url_for, abort, Response, stream_with_context, redirect)
 from flask_session import Session
@@ -33,6 +33,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 from PIL import Image, UnidentifiedImageError
 import shutil
 import img2pdf
+import secrets
 
 # --- Módulos internos ---
 from core.config import (
@@ -87,7 +88,10 @@ app.config['UPLOAD_FOLDER']     = UPLOAD_FOLDER
 app.config['OCR_OUTPUT_FOLDER'] = OCR_OUTPUT_FOLDER
 app.config['SIGNED_FOLDER']     = SIGNED_FOLDER
 app.config['COMPRESSED_FOLDER'] = COMPRESSED_FOLDER
-app.secret_key = os.urandom(24)
+# Segredo das sessoes: em producao vem do ambiente (VPS), senao um valor
+# aleatorio por start (nunca fixo no codigo).
+SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+app.secret_key = SECRET_KEY
 
 # Registrar Blueprints
 app.register_blueprint(upload_bp)
@@ -107,7 +111,7 @@ pytesseract.pytesseract.tesseract_cmd = get_tesseract_cmd()
 os.environ['TESSDATA_PREFIX'] = get_tessdata_prefix()
 
 app.config.update(
-    SECRET_KEY="troque-por-um-segredo-forte",
+    SECRET_KEY=SECRET_KEY,
     SESSION_TYPE="filesystem",
     SESSION_FILE_DIR=SESSION_DIR,
     SESSION_PERMANENT=False,
