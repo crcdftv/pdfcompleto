@@ -103,7 +103,6 @@ export async function convertPDFToExcel() {
     }
 
     const { job_id, filename } = await startRes.json();
-    console.log('📊 Job iniciado:', job_id, '| qualidade:', quality);
 
     // Polling de progresso
     await pollProgress(job_id, (pct, msg) => showProgress(pct, msg));

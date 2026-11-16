@@ -5,10 +5,6 @@ import { isNum } from './math.js';
  * Normaliza coordenadas de tarja para valores 0..1
  */
 export function normalizeTarjaRect(canvasX, canvasY, canvasW, canvasH, canvasWidth, canvasHeight) {
-  console.log('🔧 normalizeTarjaRect chamada com:', {
-    canvasX, canvasY, canvasW, canvasH, canvasWidth, canvasHeight
-  });
-
   // Validação dos parâmetros
   if (!isNum(canvasX) || !isNum(canvasY) || !isNum(canvasW) || !isNum(canvasH)) {
     console.error('❌ Coordenadas inválidas:', { canvasX, canvasY, canvasW, canvasH });
@@ -27,7 +23,6 @@ export function normalizeTarjaRect(canvasX, canvasY, canvasW, canvasH, canvasWid
     h: canvasH / canvasHeight
   };
 
-  console.log('✅ Normalizado:', normalized);
   return normalized;
 }
 

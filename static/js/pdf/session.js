@@ -14,7 +14,6 @@ export async function iniciarSessaoRedacao(webPath) {
     const txt = await resp.text();
     throw new Error(`Erro ao iniciar sessão: ${txt}`);
   }
-  const data = await resp.json();
-  console.log('Sessão de redação iniciada →', data);
+  await resp.json();
   showTemporaryMessage('Sessão de edição pronta.');
 }

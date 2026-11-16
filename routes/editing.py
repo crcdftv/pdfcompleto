@@ -31,6 +31,40 @@ def internal_error(e):
     return jsonify({"error": "Erro interno do servidor"}), 500
 
 
+def _normalize_redaction(raw):
+    """Normaliza uma tarja do frontend para o formato usado na sessão."""
+    if not isinstance(raw, dict):
+        raise ValueError("Tarja inválida")
+
+    page = raw.get("page") or raw.get("page_num") or 1
+    x_pct = raw.get("xPercent", raw.get("x"))
+    y_pct = raw.get("yPercent", raw.get("y"))
+    width_pct = raw.get("widthPercent", raw.get("w"))
+    height_pct = raw.get("heightPercent", raw.get("h"))
+
+    if any(value is None for value in (x_pct, y_pct, width_pct, height_pct)):
+        raise ValueError("Coordenadas de tarja incompletas")
+
+    try:
+        page = int(page)
+        x_pct, y_pct, width_pct, height_pct = map(
+            float, (x_pct, y_pct, width_pct, height_pct)
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Coordenadas de tarja inválidas/incompletas") from exc
+
+    if page < 1:
+        raise ValueError("Número de página inválido")
+
+    return {
+        "page": page,
+        "xPercent": x_pct,
+        "yPercent": y_pct,
+        "widthPercent": width_pct,
+        "heightPercent": height_pct,
+    }
+
+
 @editing_bp.route('/init_redaction', methods=['POST'])
 def init_redaction():
     data = request.get_json(force=True, silent=True) or {}
@@ -67,87 +101,99 @@ def __session_debug():
 
 @editing_bp.route('/undo_last_redaction', methods=['POST'])
 def undo_last_redaction():
-    try:
-        redactions = session.get('redactions')
-        if redactions is None:
-            return jsonify({"error": "Nenhum PDF carregado ou histórico vazio"}), 400
-        if not redactions:
-            return jsonify({"error": "Nenhuma tarja para desfazer"}), 400
+    """Desfaz a última tarja e mantém a sessão sincronizada com o frontend.
 
-        redactions.pop()
-        session['redactions'] = redactions
-        session.modified = True
+    O frontend pode enviar a lista restante de tarjas. Isso evita que o
+    histórico da sessão fique dessincronizado depois que o PDF é salvo.
+    """
+    data = request.get_json(silent=True) or {}
+    requested_redactions = data.get("redactions")
+
+    try:
+        if requested_redactions is None:
+            # Compatibilidade com clientes antigos: usa o histórico da sessão.
+            redactions = list(session.get('redactions') or [])
+            if not redactions:
+                return jsonify({"error": "Nenhuma tarja para desfazer"}), 400
+            redactions.pop()
+        else:
+            if not isinstance(requested_redactions, list):
+                return jsonify({"error": "Lista de tarjas inválida"}), 400
+            redactions = [
+                _normalize_redaction(redaction)
+                for redaction in requested_redactions
+            ]
 
         orig_path = session.get('original_pdf_path')
         if orig_path and os.path.isfile(orig_path):
             doc = fitz.open(orig_path)
-        elif 'original_pdf_bytes' in session:
+        elif session.get('original_pdf_bytes'):
             doc = fitz.open(stream=session['original_pdf_bytes'], filetype="pdf")
         else:
             return jsonify({"error": "Nenhum PDF carregado na sessão"}), 400
 
-        for r in redactions:
-            page_idx = int(r.get('page') or r.get('page_num') or 1) - 1
-            p = doc.load_page(page_idx)
+        try:
+            for redaction in redactions:
+                page_idx = redaction["page"] - 1
+                if page_idx < 0 or page_idx >= doc.page_count:
+                    continue
+                page = doc.load_page(page_idx)
 
-            xp = r.get('xPercent', r.get('x'))
-            yp = r.get('yPercent', r.get('y'))
-            wp = r.get('widthPercent', r.get('w'))
-            hp = r.get('heightPercent', r.get('h'))
-            for k in (xp, yp, wp, hp):
-                if k is None:
-                    doc.close()
-                    return jsonify({"error": "Coordenadas de tarja incompletas no histórico"}), 500
-            xp, yp, wp, hp = map(float, (xp, yp, wp, hp))
+                x0 = redaction["xPercent"] * page.rect.width
+                y0 = redaction["yPercent"] * page.rect.height
+                x1 = x0 + redaction["widthPercent"] * page.rect.width
+                y1 = y0 + redaction["heightPercent"] * page.rect.height
 
-            x0 = xp * p.rect.width
-            y0 = yp * p.rect.height
-            x1 = x0 + wp * p.rect.width
-            y1 = y0 + hp * p.rect.height
+                rect = fitz.Rect(x0, y0, x1, y1) & page.rect
+                if not rect.is_empty:
+                    page.add_redact_annot(rect, fill=(0, 0, 0))
+                    page.apply_redactions()
 
-            rect = fitz.Rect(x0, y0, x1, y1) & p.rect
-            if not rect.is_empty:
-                p.add_redact_annot(rect, fill=(0, 0, 0))
-                p.apply_redactions()
+            buf = io.BytesIO()
+            doc.save(buf)
+        finally:
+            doc.close()
 
-        buf = io.BytesIO()
-        doc.save(buf)
-        doc.close()
+        # Só confirma a alteração na sessão depois de gerar o PDF com sucesso.
+        session['redactions'] = redactions
+        session.modified = True
+
         buf.seek(0)
         return send_file(buf, mimetype='application/pdf',
                          as_attachment=False, download_name='preview.pdf')
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception:
+        logger.exception("Erro ao desfazer tarja")
+        return jsonify({"error": "Erro ao desfazer tarja"}), 500
 
 
 @editing_bp.route('/apply_redaction_session', methods=['POST'])
 def apply_redaction_session():
-    """Adiciona uma nova tarja ao histórico na sessão (normalizado)."""
+    """Sincroniza as tarjas do frontend com o histórico da sessão."""
     data = request.get_json(force=True, silent=True) or {}
 
-    page = data.get("page") or data.get("page_num")
-    xP   = data.get("xPercent", data.get("x"))
-    yP   = data.get("yPercent", data.get("y"))
-    wP   = data.get("widthPercent", data.get("w"))
-    hP   = data.get("heightPercent", data.get("h"))
-
     try:
-        norm = {
-            "page": int(page or 1),
-            "xPercent": float(xP),
-            "yPercent": float(yP),
-            "widthPercent": float(wP),
-            "heightPercent": float(hP),
-        }
-    except Exception:
-        return jsonify({"error": "Coordenadas de tarja inválidas/incompletas"}), 400
+        if "redactions" in data:
+            raw_redactions = data["redactions"]
+            if not isinstance(raw_redactions, list):
+                raise ValueError("Lista de tarjas inválida")
+            redactions = [
+                _normalize_redaction(redaction)
+                for redaction in raw_redactions
+            ]
+            session['redactions'] = redactions
+        else:
+            # Compatibilidade com clientes antigos: adiciona uma tarja.
+            redaction = _normalize_redaction(data)
+            if 'redactions' not in session or session.get('redactions') is None:
+                session['redactions'] = []
+            session['redactions'].append(redaction)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
-    if 'redactions' not in session or session.get('redactions') is None:
-        session['redactions'] = []
-    session['redactions'].append(norm)
     session.modified = True
-
     return jsonify({"ok": True, "redactions_len": len(session['redactions'])}), 200
 
 
@@ -199,8 +245,6 @@ def apply_edits():
     Preserva assinaturas digitais quando nao ha reordenacao de paginas.
     """
     try:
-        redactions = session.get('redactions', [])
-
         orig_path = session.get('original_pdf_path')
         if orig_path and os.path.isfile(orig_path):
             doc = fitz.open(orig_path)
@@ -213,7 +257,15 @@ def apply_edits():
         page_order = data.get('page_order', list(range(1, doc.page_count + 1)))
         page_rotations = data.get('page_rotations', {})
         edits = data.get('edits', {})
-        tarjas = edits.get('tarjas', [])
+
+        try:
+            tarjas = [
+                _normalize_redaction(redaction)
+                for redaction in edits.get('tarjas', [])
+            ]
+        except ValueError as exc:
+            doc.close()
+            return jsonify({"error": str(exc)}), 400
 
         default_order = list(range(1, doc.page_count + 1))
         needs_reorder = page_order != default_order
@@ -235,31 +287,21 @@ def apply_edits():
             except Exception:
                 pass
 
-        for r in tarjas:
-            page_idx = int(r.get('page') or r.get('page_num') or 1) - 1
+        for redaction in tarjas:
+            page_idx = redaction["page"] - 1
             if page_idx < 0 or page_idx >= doc.page_count:
                 continue
-            p = doc.load_page(page_idx)
+            page = doc.load_page(page_idx)
 
-            xp = r.get('xPercent', r.get('x'))
-            yp = r.get('yPercent', r.get('y'))
-            wp = r.get('widthPercent', r.get('w'))
-            hp = r.get('heightPercent', r.get('h'))
+            x0 = redaction["xPercent"] * page.rect.width
+            y0 = redaction["yPercent"] * page.rect.height
+            x1 = x0 + redaction["widthPercent"] * page.rect.width
+            y1 = y0 + redaction["heightPercent"] * page.rect.height
 
-            if any(v is None for v in (xp, yp, wp, hp)):
-                doc.close()
-                return jsonify({"error": "Coordenadas de tarja incompletas"}), 500
-
-            xp, yp, wp, hp = map(float, (xp, yp, wp, hp))
-            x0 = xp * p.rect.width
-            y0 = yp * p.rect.height
-            x1 = x0 + wp * p.rect.width
-            y1 = y0 + hp * p.rect.height
-
-            rect = fitz.Rect(x0, y0, x1, y1) & p.rect
+            rect = fitz.Rect(x0, y0, x1, y1) & page.rect
             if not rect.is_empty:
-                p.add_redact_annot(rect, fill=(0, 0, 0))
-                p.apply_redactions()
+                page.add_redact_annot(rect, fill=(0, 0, 0))
+                page.apply_redactions()
 
         texts = edits.get('texts', [])
         for t in texts:
@@ -300,7 +342,9 @@ def apply_edits():
         doc.close()
         buf.seek(0)
 
-        session['redactions'] = []
+        # Mantém o histórico sincronizado para permitir desfazer mesmo
+        # depois que o PDF já foi salvo.
+        session['redactions'] = tarjas
         session.modified = True
 
         return send_file(buf, mimetype='application/pdf',

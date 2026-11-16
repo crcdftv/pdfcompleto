@@ -8,8 +8,6 @@
           return;
         }
 
-        console.log('📝 Convertendo para Word...');
-
         const response = await fetch('/convert-to-word', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -30,8 +28,6 @@
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-
-        console.log('✅ Conversão para Word concluída!');
       } catch (error) {
         console.error('❌ Erro ao converter para Word:', error);
         alert('Erro ao converter para Word: ' + error.message);

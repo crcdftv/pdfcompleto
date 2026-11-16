@@ -22,7 +22,12 @@ import { openSplitModal } from './pdf/split.js';
 import { mergePDFs } from './pdf/merge.js';
 
 // -------------------- Imports de Edição --------------------
-import { toggleRedaction, desfazerUltimaTarja, initRedactionCanvas } from './edit/redaction.js';
+import {
+  toggleRedaction,
+  desfazerUltimaTarja,
+  initRedactionCanvas,
+  sincronizarHistoricoRedacao
+} from './edit/redaction.js';
 import { rotatePageLeft, rotatePageRight } from './edit/rotation.js';
 import { zoomIn, zoomOut } from './edit/zoom.js';
 import { toggleTextMode, initTextTool } from './edit/text.js';
@@ -75,8 +80,6 @@ async function pollJobProgress(jobId, progressUrl) {
 // Inicialização quando o DOM estiver pronto
 // ---------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('🚀 Iniciando aplicação...');
-
   // ====== Inicialização de módulos ======
   initMenu();
   initSearchBar();
@@ -107,21 +110,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
   });
 
-  console.log('✅ Módulos UI inicializados');
-
   // ====== Event Listeners dos Botões ======
 
   // --- Upload de PDF ---
 const uploadBtn = document.getElementById('pdf-upload');
 if (uploadBtn) {
   uploadBtn.addEventListener('change', async (event) => {
-    console.log('📄 Evento de upload disparado');
-    console.log('Arquivos:', event.target.files);
-
     // ⭐ CORREÇÃO: Passa o evento, não o arquivo
     await uploadPDF(event);
   });
-  console.log('✅ Listener de upload configurado');
 } else {
   console.warn('⚠️ Botão "pdf-upload" não encontrado no DOM');
 }
@@ -165,14 +162,8 @@ const saveBtn = document.getElementById('save-pdf-btn');
 if (saveBtn) {
   saveBtn.addEventListener('click', async () => {
     try {
-      console.log('💾 Salvando PDF...');
-      console.log('📊 Estado atual do store:', {
-        currentPdfPath: store.currentPdfPath,
-        pdfUrl: store.pdfUrl,
-        pageOrder: store.pageOrder,
-        pageRotations: store.pageRotations,
-        tarjas: store.pdfEdits.tarjas
-      });
+      // Garante que o backend tenha o mesmo histórico de tarjas da tela.
+      await sincronizarHistoricoRedacao();
 
       // Verifica se há PDF carregado
       if (!store.currentPdfPath && !store.pdfUrl) {
@@ -191,8 +182,6 @@ if (saveBtn) {
         pdfFileName = pdfFileName.replace('/ocr_outputs/', '');
       }
 
-      console.log('📄 Nome do arquivo para backend:', pdfFileName);
-
       // Monta os dados para enviar ao backend
       const payload = {
         pdf_files: [pdfFileName],
@@ -204,8 +193,6 @@ if (saveBtn) {
         page_rotations: store.pageRotations || {},
         coords_origin: 'top-left'
       };
-
-      console.log('📤 Payload completo para /apply_edits:', JSON.stringify(payload, null, 2));
 
       // Mostra loading
       const originalText = saveBtn.textContent;
@@ -242,7 +229,6 @@ if (saveBtn) {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      console.log('✅ PDF salvo com sucesso!');
       alert('PDF salvo e baixado com sucesso!');
 
       // Restaura botão
@@ -321,7 +307,6 @@ if (saveBtn) {
           return;
         }
 
-        console.log('📝 Convertendo para Word...');
         showLoadingOverlay('Convertendo para Word…');
 
         const response = await fetch('/convert-to-word', {
@@ -354,7 +339,6 @@ if (saveBtn) {
         a.click();
         setTimeout(() => a.remove(), 500);
 
-        console.log('✅ Conversão para Word concluída!');
         showTemporaryMessage('✅ Arquivo Word gerado com sucesso!');
       } catch (error) {
         console.error('❌ Erro ao converter para Word:', error);
@@ -380,7 +364,6 @@ if (saveBtn) {
           return;
         }
 
-        console.log('🖼️ Convertendo para Imagem...');
         showLoadingOverlay('Convertendo para Imagem…');
 
         // Criar FormData e adicionar o PDF
@@ -419,7 +402,6 @@ if (saveBtn) {
         a.click();
         setTimeout(() => a.remove(), 500);
 
-        console.log('✅ Conversão para Imagem concluída!');
         showTemporaryMessage('✅ Imagem gerada com sucesso!');
       } catch (error) {
         console.error('❌ Erro ao converter para Imagem:', error);
@@ -444,7 +426,6 @@ if (saveBtn) {
         if (!files || files.length === 0) return;
 
         try {
-          console.log('🖼️ Convertendo imagens para PDF...');
           showLoadingOverlay('Convertendo imagens para PDF…');
 
           const formData = new FormData();
@@ -472,7 +453,6 @@ if (saveBtn) {
           document.body.removeChild(a);
           window.URL.revokeObjectURL(url);
 
-          console.log('✅ Conversão de Imagens concluída!');
           hideLoadingOverlay();
           showTemporaryMessage('✅ PDF gerado com sucesso!');
         } catch (error) {
@@ -486,13 +466,10 @@ if (saveBtn) {
     });
   }
 
-  console.log('✅ Aplicação inicializada com sucesso!');
-
   // ====== Auto-abrir PDF via ?file= na URL (desktop mode) ======
   const urlParams = new URLSearchParams(window.location.search);
   const fileParam = urlParams.get('file');
   if (fileParam) {
-    console.log('📂 PDF detectado na URL:', fileParam);
     (async () => {
       try {
         showLoadingOverlay('Carregando PDF…');
@@ -501,7 +478,6 @@ if (saveBtn) {
         const blob = await response.blob();
         const file = new File([blob], fileParam, { type: 'application/pdf' });
         await uploadPDF(file);
-        console.log('✅ PDF carregado automaticamente via URL');
       } catch (err) {
         console.error('❌ Erro ao auto-abrir PDF:', err);
         hideLoadingOverlay();
