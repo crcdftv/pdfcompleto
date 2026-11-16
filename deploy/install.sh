@@ -130,6 +130,8 @@ if [ -d "$INSTALL_DIR/.venv" ]; then
     if [ "$ATUAL" != "$PYTHON_VERSION" ]; then
         if [ -n "$ATUAL" ]; then
             echo "    venv criado com Python $ATUAL, recriando com $PYTHON_VERSION"
+        else
+            echo "    venv existente sem versao registrada, recriando com $PYTHON_VERSION"
         fi
         rm -rf "$INSTALL_DIR/.venv"
     fi
