@@ -37,7 +37,7 @@ import secrets
 
 # --- Módulos internos ---
 from core.config import (
-    BASE_DIR, SESSION_DIR, UPLOAD_FOLDER, OCR_OUTPUT_FOLDER,
+    BASE_DIR, DATA_DIR, SESSION_DIR, UPLOAD_FOLDER, OCR_OUTPUT_FOLDER,
     SIGNED_FOLDER, COMPRESSED_FOLDER, ALLOWED_EXT,
     get_tesseract_cmd, get_tessdata_prefix,
 )
@@ -54,19 +54,34 @@ from routes.editing import editing_bp
 from routes.conversions import conversions_bp, limpar_conversions
 from routes.manipulation import manipulation_bp
 
-# Configurar logging com rotação de arquivo
-LOG_DIR = os.path.join(BASE_DIR, 'logs')
-os.makedirs(LOG_DIR, exist_ok=True)
+# Configurar logging com rotação de arquivo.
+# O log fica na pasta de DADOS (na VPS: /var/lib/pdfcompleto/logs), e nao no
+# codigo: assim o app continua funcionando mesmo se /opt/pdfcompleto for
+# somente-leitura ou tiver sido criado por outro usuario.
+LOG_DIR = os.path.join(DATA_DIR, 'logs')
+try:
+    os.makedirs(LOG_DIR, exist_ok=True)
+except OSError:
+    LOG_DIR = os.path.join(BASE_DIR, 'logs')
+    os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, 'pdfcompleto.log')
+
+_handlers = [logging.StreamHandler()]
+try:
+    _handlers.insert(0, RotatingFileHandler(
+        LOG_FILE, maxBytes=5*1024*1024, backupCount=5, encoding='utf-8'))
+except OSError as e:
+    # Sem permissao para o arquivo de log: NAO pode derrubar o servico.
+    # Segue so com o log no console (systemd/journalctl).
+    print(f"AVISO: nao foi possivel abrir o arquivo de log "
+          f"({LOG_FILE}): {e}. Usando apenas o console.")
+    LOG_FILE = ''
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        RotatingFileHandler(LOG_FILE, maxBytes=5*1024*1024, backupCount=5, encoding='utf-8'),
-        logging.StreamHandler()
-    ]
+    handlers=_handlers
 )
 logger = logging.getLogger(__name__)
 
@@ -445,9 +460,10 @@ def _collect_health_data():
     }
 
     health["checks"]["log_file"] = {
-        "status": "ok",
-        "path": LOG_FILE,
-        "size_mb": round(os.path.getsize(LOG_FILE) / (1024**2), 2) if os.path.isfile(LOG_FILE) else 0
+        "status": "ok" if LOG_FILE else "console-only",
+        "path": LOG_FILE or "(somente console/journalctl)",
+        "size_mb": round(os.path.getsize(LOG_FILE) / (1024**2), 2)
+                  if LOG_FILE and os.path.isfile(LOG_FILE) else 0
     }
 
     return health

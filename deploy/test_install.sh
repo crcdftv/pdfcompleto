@@ -31,15 +31,6 @@ cat > "$STUBS/nginx" <<'EOF'
 echo "[stub nginx] $*"
 exit 0
 EOF
-cat > "$STUBS/useradd" <<'EOF'
-#!/bin/sh
-echo "[stub useradd] $*"
-exit 0
-EOF
-cat > "$STUBS/id" <<'EOF'
-#!/bin/sh
-exit 0
-EOF
 cat > "$STUBS/sudo" <<'EOF'
 #!/bin/sh
 # remove -u <user> e executa o comando de verdade
@@ -57,6 +48,10 @@ cat > "$STUBS/git" <<'EOF'
 # git clone: copia o repo de origem sem usar a rede
 if [ "$1" = "clone" ]; then
     origem="$2"; destino="$3"
+    # no teste, REPO_ROOT aponta para a copia local do repo
+    if [ -n "${REPO_ROOT:-}" ] && [ -d "$REPO_ROOT" ]; then
+        origem="$REPO_ROOT"
+    fi
     mkdir -p "$destino"
     cp -r "$origem/." "$destino/" 2>/dev/null || true
     rm -rf "$destino/.git"
@@ -69,6 +64,10 @@ EOF
 
 chmod +x "$STUBS"/*
 
+# o usuario real do sistema (o instalador usa chown/sudo -u nele)
+id -u pdfcompleto >/dev/null 2>&1 || \
+    useradd --system --create-home --home-dir /home/pdfcompleto --shell /usr/sbin/nologin pdfcompleto
+
 export PATH="$STUBS:$PATH"
 export INSTALL_DIR="$TESTE/opt/pdfcompleto"
 export DATA_DIR="$TESTE/var/lib/pdfcompleto"
@@ -78,15 +77,27 @@ export APP_PORT="5000"
 export OCR_MAX_WORKERS="2"
 export MEMORY_MAX="3G"
 
-# pip stub: evita baixar as 52 dependencias de verdade
+# pip/python do venv sao stubados: evita baixar as 52 dependencias de verdade
 mkdir -p "$INSTALL_DIR/.venv/bin"
 cat > "$INSTALL_DIR/.venv/bin/pip" <<'EOF'
 #!/bin/sh
 echo "[stub pip] $*"
 exit 0
 EOF
-chmod +x "$INSTALL_DIR/.venv/bin/pip"
-# venv ja existe -> o install.sh nao tenta criar
+cat > "$INSTALL_DIR/.venv/bin/python" <<'EOF'
+#!/bin/sh
+case "$1" in
+    --version) echo "Python 3.12.16 (stub)";;
+    -m) echo "[stub python] $*" ;;
+    *) echo "[stub python] $*" ;;
+esac
+exit 0
+EOF
+chmod +x "$INSTALL_DIR/.venv/bin/pip" "$INSTALL_DIR/.venv/bin/python"
+# marcador de versao: o instalador nao deve recriar o venv
+echo "3.12" > "$INSTALL_DIR/.venv-python-version"
+
+# o install.sh precisa existir no INSTALL_DIR (o git stub popula a pasta)
 mkdir -p "$INSTALL_DIR/deploy"
 cp "$RAIZ/deploy/install.sh" "$INSTALL_DIR/deploy/install.sh"
 
@@ -108,6 +119,6 @@ cat /etc/nginx/sites-available/pdfcompleto 2>/dev/null || echo "(nao gerado)"
 echo
 echo "=================== permissoes ==================="
 ls -ld "$ENV_FILE" "$DATA_DIR" 2>/dev/null || true
-ls -l "$DATA_DIR" 2>/dev/null || true
+ls -la "$DATA_DIR" 2>/dev/null || true
 
 rm -rf "$TESTE"
