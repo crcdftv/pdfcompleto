@@ -2,7 +2,6 @@
 from flask import (Flask, render_template, request, jsonify, send_from_directory, session,
                    send_file, url_for, abort, Response, stream_with_context, redirect)
 from flask_session import Session
-from flask_cors import CORS
 import os, tempfile
 import fitz  # PyMuPDF
 import io
@@ -97,7 +96,6 @@ app = Flask(
     template_folder=os.path.join(BASE_DIR, "templates"),
     static_folder=os.path.join(BASE_DIR, "static"),
 )
-CORS(app)
 
 app.config['UPLOAD_FOLDER']     = UPLOAD_FOLDER
 app.config['OCR_OUTPUT_FOLDER'] = OCR_OUTPUT_FOLDER
@@ -125,11 +123,21 @@ set_pkcs11_service(pkcs11_service)
 pytesseract.pytesseract.tesseract_cmd = get_tesseract_cmd()
 os.environ['TESSDATA_PREFIX'] = get_tessdata_prefix()
 
+# O cookie seguro fica habilitado explicitamente na VPS. Em desenvolvimento
+# local HTTP ele permanece desabilitado para não quebrar o fluxo do desktop.
+SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "0").strip().lower() in {
+    "1", "true", "yes", "on"
+}
+
 app.config.update(
     SECRET_KEY=SECRET_KEY,
     SESSION_TYPE="filesystem",
     SESSION_FILE_DIR=SESSION_DIR,
     SESSION_PERMANENT=False,
+    SESSION_COOKIE_SECURE=SESSION_COOKIE_SECURE,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE=os.environ.get("SESSION_COOKIE_SAMESITE", "Lax"),
+    SESSION_COOKIE_PATH="/",
 )
 Session(app)
 
@@ -241,7 +249,6 @@ def health_check():
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDFCompleto — System Status</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap');
   * {{ margin:0; padding:0; box-sizing:border-box; }}
   body {{
     background: #0a0e17;

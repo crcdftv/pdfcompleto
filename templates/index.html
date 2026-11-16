@@ -4,23 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editor de PDF</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="static/style.css?v=2">
-
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
 
-    <!-- PDF.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Dependências locais: mantêm a CSP restritiva e evitam requisições externas. -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/inter.css') }}" integrity="sha384-MKyGGLHYnmO7i4TWeI8WvXE7vT3jjhkU5MuwhAlwXcotAyZvWsQqUTt1tsHYmJu7">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}" integrity="sha384-/o6I2CkkWC//PSjvWC/eYN7l3xM3tJm8ZzVkCOfp//W05QcE3mlGskpoHB6XqI+B">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3" integrity="sha384-CKq/mO/DAuHLLIu3E8qTx4uisEbf8g+KX12hzA6L17m6rtAjduEWzH4klnMXwBzr">
 
-    <script>
-        // Worker local: evita o fallback "fake worker" do PDF.js.
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '{{ url_for('static', filename='pdf.worker.min.js') }}';
-    </script>
+    <!-- PDF.js -->
+    <script src="{{ url_for('static', filename='vendor/pdfjs/pdf.min.js') }}" integrity="sha384-RPl3/z3fjdXhY+fi+x3Ai8ri9BnaFQ2tIZn+wJ4pNmFqp/KvdiIcqMESTEY2MdUz"></script>
+    <script src="{{ url_for('static', filename='vendor/pdfjs/pdf-config.js') }}" integrity="sha384-jDFDU+Qqkr7edewj5ZAH8xiCoDlmI7k/Htlfu3UCL9tF0peYT52+zcoIdC4V+7Hd"></script>
+    <script src="{{ url_for('static', filename='vendor/html2canvas/html2canvas.min.js') }}" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"></script>
 </head>
 
 <body>

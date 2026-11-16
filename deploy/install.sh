@@ -169,6 +169,8 @@ if [ ! -f "$ENV_FILE" ]; then
 # PDFCompleto - configuracao (nao versionar, nao compartilhar)
 SECRET_KEY=$SECRET
 PDFCOMPLETO_DATA_DIR=$DATA_DIR
+SESSION_COOKIE_SECURE=1
+SESSION_COOKIE_SAMESITE=Lax
 TESSERACT_CMD=/usr/bin/tesseract
 TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
 OCR_MAX_WORKERS=$OCR_MAX_WORKERS
@@ -180,6 +182,8 @@ EOF
 else
     echo "$ENV_FILE ja existe, mantido como esta"
     grep -q '^OCR_MAX_WORKERS=' "$ENV_FILE" || echo "OCR_MAX_WORKERS=$OCR_MAX_WORKERS" >> "$ENV_FILE"
+    grep -q '^SESSION_COOKIE_SECURE=' "$ENV_FILE" || echo "SESSION_COOKIE_SECURE=1" >> "$ENV_FILE"
+    grep -q '^SESSION_COOKIE_SAMESITE=' "$ENV_FILE" || echo "SESSION_COOKIE_SAMESITE=Lax" >> "$ENV_FILE"
 fi
 
 # ---------------------------------------------------------------- 9. servico
@@ -227,6 +231,18 @@ server {
     listen 80;
     listen [::]:80;
     server_name $SERVER_NAME;
+    server_tokens off;
+
+    # Cabecalhos de seguranca (CSP e politicas de isolamento do navegador).
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; media-src 'self' blob: data:; frame-src 'none'; manifest-src 'self'; upgrade-insecure-requests" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Embedder-Policy "require-corp" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
 
     # PDFs grandes (o maior de teste tinha 286 MB)
     client_max_body_size 512m;
@@ -243,6 +259,9 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_hide_header Access-Control-Allow-Origin;
+        proxy_hide_header Access-Control-Allow-Credentials;
+        proxy_hide_header X-Powered-By;
     }
 }
 EOF

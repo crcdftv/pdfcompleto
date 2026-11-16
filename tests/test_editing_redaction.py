@@ -10,6 +10,7 @@ import fitz
 TEST_DATA_DIR = tempfile.mkdtemp(prefix="pdfcompleto-tests-")
 os.environ["PDFCOMPLETO_DATA_DIR"] = TEST_DATA_DIR
 os.environ["SECRET_KEY"] = "test-secret-key"
+os.environ["SESSION_COOKIE_SECURE"] = "1"
 
 from app import app  # noqa: E402
 
@@ -102,13 +103,33 @@ class RedactionSessionTestCase(unittest.TestCase):
     def test_local_pdf_worker_is_served_and_configured(self):
         page_response = self.client.get("/")
         self.assertEqual(page_response.status_code, 200)
-        self.assertIn("/static/pdf.worker.min.js", page_response.get_data(as_text=True))
+        page_html = page_response.get_data(as_text=True)
+        self.assertIn("/static/vendor/pdfjs/pdf-config.js", page_html)
+        self.assertIn("/static/style.css", page_html)
+        self.assertNotIn("https://cdnjs.cloudflare.com", page_html)
+        self.assertNotIn("https://fonts.googleapis.com", page_html)
+        self.assertIn("integrity=\"sha384-", page_html)
         page_response.close()
+
+        config_response = self.client.get("/static/vendor/pdfjs/pdf-config.js")
+        self.assertEqual(config_response.status_code, 200)
+        self.assertIn("/static/pdf.worker.min.js", config_response.get_data(as_text=True))
+        config_response.close()
 
         worker_response = self.client.get("/static/pdf.worker.min.js")
         self.assertEqual(worker_response.status_code, 200)
         self.assertIn("javascript", worker_response.content_type)
         worker_response.close()
+
+    def test_session_cookie_is_secure_and_cors_is_not_wildcarded(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Access-Control-Allow-Origin", response.headers)
+
+        cookie = response.headers.get("Set-Cookie", "")
+        self.assertIn("Secure", cookie)
+        self.assertIn("HttpOnly", cookie)
+        self.assertIn("SameSite=Lax", cookie)
 
     def test_redaction_snapshot_replaces_server_history(self):
         first = {
