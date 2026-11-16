@@ -15,6 +15,7 @@ instalado pelo apt.
 | Item | Mínimo | Recomendado |
 |---|---|---|
 | SO | Ubuntu 22.04+ / Debian 11+ | Ubuntu 24.04 LTS |
+| Python | 3.11 – 3.13 (o instalador garante) | 3.12 |
 | RAM | 1 GB | 2–4 GB |
 | Disco | 10 GB | 30 GB+ (PDFs processed ocupam espaço) |
 | Acesso | `root` via SSH | `root` via SSH |
@@ -24,6 +25,14 @@ Acesso SSH:
 ```bash
 ssh root@IP_DA_VPS
 ```
+
+> **Ubuntu 26.04 "resolute" (Python 3.14):** vários pacotes fixados
+> (`numpy`, `pandas`, `lxml`, `pikepdf`) **não têm wheel** para 3.14 e tentam
+> compilar do zero — o que falha com
+> `Error: Please make sure the libxml2 and libxslt development packages are installed`.
+> O instalador já resolve isso: instala as build deps **e** garante um
+> **Python 3.12** (do sistema, do apt ou via `uv` com Python standalone em
+> `/opt/python`), que é a mesma versão validada no `Dockerfile`.
 
 ---
 
@@ -60,6 +69,7 @@ sudo bash deploy/install.sh
 | `DATA_DIR` | `/var/lib/pdfcompleto` | pasta de uploads/resultados |
 | `OCR_MAX_WORKERS` | `2` | páginas em paralelo no OCR (menos = menos RAM) |
 | `MEMORY_MAX` | *(vazio)* | limite de RAM do serviço, ex. `3G` |
+| `PYTHON_VERSION` | `3.12` | versão do Python (3.11–3.13 têm wheels) |
 
 Exemplo com domínio e repo privado:
 
@@ -160,6 +170,41 @@ journalctl -u pdfcompleto --since "1 hour ago"   # última hora
 
 du -sh /var/lib/pdfcompleto/*     # espaço usado
 ls /var/lib/pdfcompleto/uploads   # PDFs enviados
+```
+
+### Problemas conhecidos
+
+**`Error: Please make sure the libxml2 and libxslt development packages are installed`**
+
+O Python do sistema (3.14 no Ubuntu 26.04) não tem wheels para os pacotes
+fixados e eles tentam compilar. **Solução:** use o instalador atualizado,
+que instala as build deps e garante um Python 3.12:
+
+```bash
+cd /root/pdfcompleto && sudo git pull && sudo bash deploy/install.sh
+```
+
+Se preferir resolver na mão:
+
+```bash
+sudo apt-get install -y build-essential pkg-config libxml2-dev libxslt1-dev \
+    zlib1g-dev libjpeg-dev libffi-dev libssl-dev
+```
+
+**`PermissionError` / `Worker failed to boot` no log**
+
+O serviço roda como o usuário `pdfcompleto` e grava log em
+`/var/lib/pdfcompleto/logs`. Verifique a dono/permissão:
+
+```bash
+sudo chown -R pdfcompleto:pdfcompleto /var/lib/pdfcompleto
+sudo systemctl restart pdfcompleto
+```
+
+**`git pull` recusando o repositório (`dubious ownership`)**
+
+```bash
+sudo git config --global --add safe.directory /opt/pdfcompleto
 ```
 
 ### Backup
